@@ -1,12 +1,20 @@
+require('dotenv').config();
+const express = require('express');
+const cors = require('cors');
 const { Resend } = require('resend');
+const path = require('path');
 
+const app = express();
+const port = process.env.PORT || 3000;
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-module.exports = async (req, res) => {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ message: 'Method not allowed' });
-  }
+// Middleware
+app.use(cors());
+app.use(express.json());
+app.use(express.static(path.join(__dirname)));
 
+// API Route
+app.post('/api/send', async (req, res) => {
   const { name, email, message } = req.body;
 
   if (!name || !email || !message) {
@@ -16,7 +24,7 @@ module.exports = async (req, res) => {
   try {
     const data = await resend.emails.send({
       from: 'Contact Form <onboarding@resend.dev>',
-      to: 'fazilyousafzai@gmail.com', // Default receiver, can be updated
+      to: 'fazilyousafzai@gmail.com', // Change this to your email
       subject: `New Message from ${name}`,
       html: `
         <h2>New Contact Form Submission</h2>
@@ -29,6 +37,16 @@ module.exports = async (req, res) => {
 
     res.status(200).json({ message: 'Email sent successfully', data });
   } catch (error) {
+    console.error('Error sending email:', error);
     res.status(500).json({ message: 'Error sending email', error: error.message });
   }
-};
+});
+
+// Serve index.html for any other route
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+app.listen(port, () => {
+  console.log(`Server is running on port ${port}`);
+});
