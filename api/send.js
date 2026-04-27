@@ -1,9 +1,5 @@
-const { Resend } = require('resend');
-
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 module.exports = async (req, res) => {
-  // Add CORS headers for Vercel
+  // CORS Headers
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
@@ -13,8 +9,7 @@ module.exports = async (req, res) => {
   );
 
   if (req.method === 'OPTIONS') {
-    res.status(200).end();
-    return;
+    return res.status(200).end();
   }
 
   if (req.method !== 'POST') {
@@ -27,23 +22,46 @@ module.exports = async (req, res) => {
     return res.status(400).json({ message: 'Missing required fields' });
   }
 
+  const apiKey = process.env.RESEND_API_KEY;
+
+  if (!apiKey) {
+    console.error('MISSING RESEND_API_KEY');
+    return res.status(500).json({ message: 'API Key missing in environment variables' });
+  }
+
   try {
-    const data = await resend.emails.send({
-      from: 'Contact Form <onboarding@resend.dev>',
-      to: 'fazilyousafzaivlogs@gmail.com',
-      subject: `New Message from ${name}`,
-      html: `
-        <h2>New Contact Form Submission</h2>
-        <p><strong>Name:</strong> ${name}</p>
-        <p><strong>Email:</strong> ${email}</p>
-        <p><strong>Message:</strong></p>
-        <p>${message}</p>
-      `,
+    // Using native fetch to avoid SDK dependency issues
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        from: 'Contact Form <onboarding@resend.dev>',
+        to: 'fazilyousafzaivlogs@gmail.com',
+        subject: `New Message from ${name}`,
+        html: `
+          <h2>New Contact Form Submission</h2>
+          <p><strong>Name:</strong> ${name}</p>
+          <p><strong>Email:</strong> ${email}</p>
+          <p><strong>Message:</strong></p>
+          <p>${message}</p>
+        `
+      })
     });
 
-    return res.status(200).json({ message: 'Email sent successfully', data });
+    const data = await response.json();
+
+    if (!response.ok) {
+      console.error('Resend API Error:', data);
+      return res.status(response.status).json({ message: 'Resend API error', error: data });
+    }
+
+    return res.status(200).json({ message: 'Email sent successfully!', data });
+
   } catch (error) {
-    console.error('Vercel API Error:', error);
-    return res.status(500).json({ message: 'Error sending email', error: error.message });
+    console.error('Serverless Function Error:', error);
+    return res.status(500).json({ message: 'Internal Server Error', error: error.message });
   }
 };
